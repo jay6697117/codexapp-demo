@@ -1,0 +1,26 @@
+{
+  "name": "pixel-arena-deno-deploy",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "scripts": {
+    "client:dev": "pnpm -C client dev",
+    "client:build": "pnpm -C client build"
+  },
+  "version": "1.0.0",
+  "description": "8-player FFA top-down pixel shooter demo with a KV-recoverable Deno Deploy server and PixiJS web client.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

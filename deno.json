@@ -1,0 +1,12 @@
+{
+  "tasks": {
+    "dev": "deno run -A --watch server/main.ts",
+    "test": "deno test -A"
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "semiColons": true,
+    "singleQuote": true
+  }
+}
+

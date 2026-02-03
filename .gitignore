@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+
+client/dist/
+
+server/public/*
+!server/public/.gitkeep
+
+deno-kv.sqlite3
+*.sqlite3
+*.sqlite
+
+.DS_Store
+
