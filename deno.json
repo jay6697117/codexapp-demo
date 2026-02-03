@@ -11,5 +11,20 @@
     "semiColons": true,
     "singleQuote": true
   },
-  "unstable": ["kv"]
+  "unstable": [
+    "kv"
+  ],
+  "deploy": {
+    "project": "cc216077-1a34-46bd-864f-299d7b1d626f",
+    "exclude": [
+      "**/node_modules"
+    ],
+    "include": [
+      "server",
+      "shared",
+      "client/dist",
+      "deno.json"
+    ],
+    "entrypoint": "server/main.ts"
+  }
 }
