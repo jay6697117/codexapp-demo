@@ -64,6 +64,7 @@ pnpm -C client dev
 - 入口文件：`server/main.ts`
 - 构建：`pnpm -C client build`（输出到 `server/public/`）
 - 运行：服务端使用 `serveDir` 提供静态文件，并通过 `/ws` 提供 WebSocket 对局
+- 部署命令（交互式登录）：`~/.deno/bin/deno deploy --org <org> --app <app> --prod .`
 
 ## KV 键结构（当前实现）
 

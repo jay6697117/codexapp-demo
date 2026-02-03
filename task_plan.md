@@ -41,9 +41,24 @@
 - [ ] Playwright 技能客户端（可选）：如需验证无头截图，建议使用 `--screenshot-dir output/web-game-run`
 - **状态：**基本完成（保留可选项）
 
+<<<<<<< HEAD
 ### 阶段 5：交付
 - [x] 文档与使用说明（README）
 - **状态：**完成
+=======
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `pnpm -C client exec tsc -p tsconfig.json` failed (TS2307/TS18047/TS7006) | 1 | Fixed `client/tsconfig.json` alias + `allowImportingTsExtensions`; added `requireElement` for DOM refs |
+| `deno run -A server/main.ts` failed (`Deno.openKv` unstable) | 1 | Added `"unstable": ["kv"]` to `deno.json` |
+| Node Playwright multi-client check failed (shell backticks + matchId undefined) | 1 | Fixed quoting + wait loop; verified same match and playerCount >= 2 |
+| `deno deploy --help` timed out while downloading deps | 1 | Re-ran with longer timeout; help output retrieved |
+| `deno deploy create .` failed (config parse: unknown field `install`) | 1 | pending |
+| `deno deploy .` failed after auth (org not found/no access) | 1 | Removed placeholder `deploy.org/app` from `deno.json`; waiting for real org/app |
+| `deno deploy .` failed: no organization selected | 1 | pending |
+| `deno deploy switch` failed: no organization selected | 1 | pending |
+| `deno deploy --org SteveZhang --app codex-demo --prod .` failed (org not found/no access) | 1 | pending |
+>>>>>>> codex/local-online
 
 ## 关键问题（已覆盖）
 

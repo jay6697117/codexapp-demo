@@ -36,8 +36,18 @@
 | Vite 开发服务器联机同源问题 | 在 `client/vite.config.ts` 增加 `/api` 与 `/ws` 反向代理 |
 | 本地 Deno 2.x 需要显式启用 KV | 在 `deno.json` 增加 `"unstable": ["kv"]`，确保 `deno run/test` 默认可用 |
 | `kv.watch` 无法使用 `AbortSignal` 停止（类型层面） | 改为保存迭代器，并在需要停止时调用 `iterator.return()` |
-| 无头截图易出现透明/全黑 | 客户端渲染改为显式 `app.render()`，并开启 `preserveDrawingBuffer`；回归时建议 Playwright 使用 `--screenshot-dir` 指向未跟踪目录 |
-| Deno Deploy 需要可声明的构建配置 | 在 `deno.json` 增加 `deploy.install` / `deploy.build` / `deploy.runtime.entrypoint` |
+| 无头截图易出现透明/全黑 | 开启 `preserveDrawingBuffer`，并使用 Playwright `--screenshot-dir` |
+| `deno deploy` 解析 `deploy` 配置失败 | CLI 仅接受 `org/app`，移除 `deploy.install/build/runtime` |
+
+## 本地联机验证
+
+- Playwright 两客户端同局：`connected: true`，`playerCount >= 2`
+- 在线快照可持续推进，截图可见玩家与障碍
+
+## 部署尝试与 CLI 结论
+
+- `deno deploy` 需交互授权或 token；部署需显式 `--org`
+- `deno deploy` 未选择组织会报错；错误组织或无权限会报 “org not found/no access”
 
 ## 关键实现入口
 
@@ -53,7 +63,3 @@
 - 当前目录下未发现 `.worktrees/` 或 `worktrees/`（需按流程选择 worktree 位置）。
 - 未发现 `CLAUDE.md`（无 worktree 目录偏好配置）。
 - 已安装 Deno（用于本地 `deno test`/`deno check` 验证）。
-
-## 2026-02-03 Local Online
-- Added explicit online policy function to control local online/offline behavior.
-- Installed Deno locally at `~/.deno/bin/deno` to enable local server and tests.

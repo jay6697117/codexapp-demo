@@ -24,17 +24,16 @@ type NetSnapshot = {
 
 type Mode = 'menu' | 'connecting' | 'online' | 'offline';
 
-const overlay = document.querySelector<HTMLDivElement>('#overlay');
-const startBtn = document.querySelector<HTMLButtonElement>('#start-btn');
-const canvasWrap = document.querySelector<HTMLDivElement>('#canvas-wrap');
-
-if (!overlay || !startBtn || !canvasWrap) {
-  throw new Error('Missing DOM elements');
+function requireElement<T extends Element>(el: T | null, name: string): T {
+  if (!el) {
+    throw new Error(`Missing DOM element: ${name}`);
+  }
+  return el;
 }
 
-const overlayEl: HTMLDivElement = overlay;
-const startBtnEl: HTMLButtonElement = startBtn;
-const canvasWrapEl: HTMLDivElement = canvasWrap;
+const overlay = requireElement(document.querySelector<HTMLDivElement>('#overlay'), 'overlay');
+const startBtn = requireElement(document.querySelector<HTMLButtonElement>('#start-btn'), 'start-btn');
+const canvasWrap = requireElement(document.querySelector<HTMLDivElement>('#canvas-wrap'), 'canvas-wrap');
 
 const app = new PIXI.Application();
 const graphics = new PIXI.Graphics();
@@ -75,13 +74,13 @@ async function bootstrap(): Promise<void> {
     height: WORLD_HEIGHT,
     backgroundColor: 0x0f141c,
     antialias: false,
-    resolution: 1,
+    resolution: window.devicePixelRatio || 1,
     autoStart: false,
     preserveDrawingBuffer: true
   });
   appReady = true;
 
-  canvasWrapEl.appendChild(app.canvas);
+  canvasWrap.appendChild(app.canvas);
   app.stage.addChild(graphics);
   app.stage.addChild(hudText);
   hudText.position.set(12, 12);
@@ -95,14 +94,14 @@ async function bootstrap(): Promise<void> {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
 
-  startBtnEl.addEventListener('click', () => startGame());
+  startBtn.addEventListener('click', () => startGame());
 
   setupLocalMatch();
   requestAnimationFrame(loop);
 }
 
 function startGame(): void {
-  overlayEl.classList.add('hidden');
+  overlay.classList.add('hidden');
   if (forceOffline) {
     startOffline();
     return;
