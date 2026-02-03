@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 export {};
 
 declare global {
@@ -6,4 +8,3 @@ declare global {
     advanceTime: (ms: number) => void;
   }
 }
-

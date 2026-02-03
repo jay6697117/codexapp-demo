@@ -1,5 +1,6 @@
 import { serveDir } from 'https://deno.land/std@0.224.0/http/file_server.ts';
 import {
+  MAP_ID,
   MAX_PLAYERS,
   SERVER_TICK_HZ,
   SNAPSHOT_HZ,
@@ -15,6 +16,9 @@ import {
 type MatchMeta = {
   status: 'waiting' | 'running' | 'ended';
   createdAt: number;
+  seed: number;
+  mapId: string;
+  endsAt?: number;
 };
 
 type LeaderRecord = {
@@ -91,7 +95,14 @@ async function handleJoin(req: Request): Promise<Response> {
   });
 
   const metaEntry = await kv.get<MatchMeta>(META_KEY(matchId));
-  const meta: MatchMeta = metaEntry.value ?? { status: 'waiting', createdAt: now };
+  const meta: MatchMeta =
+    metaEntry.value ??
+    ({
+      status: 'waiting',
+      createdAt: now,
+      seed: Math.floor(Math.random() * 1_000_000_000),
+      mapId: MAP_ID
+    } satisfies MatchMeta);
   const playerCount = await countPlayers(matchId);
   if (meta.status === 'waiting' && playerCount >= 2) {
     meta.status = 'running';
@@ -143,7 +154,7 @@ async function handleWebSocket(req: Request): Promise<Response> {
 
   socket.onopen = () => {
     runtime.clients.add(socket);
-    sendWelcome(socket, playerEntry.value!.slot);
+    void sendWelcome(socket, runtime.matchId, playerEntry.value!.slot);
   };
 
   socket.onmessage = async (event) => {
@@ -157,7 +168,7 @@ async function handleWebSocket(req: Request): Promise<Response> {
     if (!msg || typeof msg !== 'object') return;
     const type = (msg as { type?: unknown }).type;
     if (type === 'ClientHello') {
-      sendWelcome(socket, playerEntry.value!.slot);
+      void sendWelcome(socket, runtime.matchId, playerEntry.value!.slot);
       return;
     }
     if (type === 'ClientInput') {
@@ -190,8 +201,25 @@ async function handleWebSocket(req: Request): Promise<Response> {
   return response;
 }
 
-function sendWelcome(socket: WebSocket, slot: number): void {
-  socket.send(JSON.stringify({ type: 'ServerWelcome', slot }));
+async function sendWelcome(socket: WebSocket, matchId: string, slot: number): Promise<void> {
+  try {
+    const [meta, snapshot] = await Promise.all([
+      kv.get<MatchMeta>(META_KEY(matchId)),
+      kv.get<{ snapshotSeq: number }>(SNAPSHOT_KEY(matchId))
+    ]);
+    socket.send(
+      JSON.stringify({
+        type: 'ServerWelcome',
+        slot,
+        serverTime: Date.now(),
+        snapshotSeq: snapshot.value?.snapshotSeq ?? 0,
+        mapId: meta.value?.mapId ?? MAP_ID,
+        seed: meta.value?.seed ?? 0
+      })
+    );
+  } catch {
+    // ignore
+  }
 }
 
 type MatchRuntime = {
@@ -201,9 +229,9 @@ type MatchRuntime = {
   lastInputs: Map<string, PlayerInputState>;
   lastInputSig: Map<string, string>;
   state: MatchRuntimeState | null;
-  inputWatchAbort?: AbortController;
+  inputWatchIter?: AsyncIterator<readonly Deno.KvEntryMaybe<unknown>[]>;
   inputWatchKeySig?: string;
-  snapshotWatchAbort?: AbortController;
+  snapshotWatchIter?: AsyncIterator<readonly Deno.KvEntryMaybe<unknown>[]>;
   leaderInterval?: number;
   tickInterval?: number;
   isLeader: boolean;
@@ -238,30 +266,36 @@ function getMatchRuntime(matchId: string): MatchRuntime {
 }
 
 function stopMatchRuntime(runtime: MatchRuntime): void {
-  runtime.snapshotWatchAbort?.abort();
-  runtime.inputWatchAbort?.abort();
+  runtime.snapshotWatchIter?.return?.();
+  runtime.inputWatchIter?.return?.();
   if (runtime.leaderInterval) clearInterval(runtime.leaderInterval);
   if (runtime.tickInterval) clearInterval(runtime.tickInterval);
 }
 
 function startSnapshotWatch(runtime: MatchRuntime): void {
-  const abort = new AbortController();
-  runtime.snapshotWatchAbort?.abort();
-  runtime.snapshotWatchAbort = abort;
+  runtime.snapshotWatchIter?.return?.();
+  const iterator = kv.watch([SNAPSHOT_KEY(runtime.matchId)])[Symbol.asyncIterator]();
+  runtime.snapshotWatchIter = iterator;
 
   (async () => {
-    for await (const entries of kv.watch([SNAPSHOT_KEY(runtime.matchId)], { signal: abort.signal })) {
-      const entry = entries[0];
-      if (!entry?.value) continue;
-      const value = entry.value as { snapshotSeq: number; serverTick: number; bytes: Uint8Array };
-      runtime.lastSnapshotSeq = value.snapshotSeq;
-      for (const client of runtime.clients) {
-        try {
-          client.send(value.bytes);
-        } catch {
-          runtime.clients.delete(client);
+    try {
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) return;
+        const entry = next.value?.[0];
+        if (!entry?.value) continue;
+        const value = entry.value as { snapshotSeq: number; serverTick: number; bytes: Uint8Array };
+        runtime.lastSnapshotSeq = value.snapshotSeq;
+        for (const client of runtime.clients) {
+          try {
+            client.send(value.bytes);
+          } catch {
+            runtime.clients.delete(client);
+          }
         }
       }
+    } catch {
+      // ignore
     }
   })();
 }
@@ -347,18 +381,25 @@ async function refreshInputWatch(runtime: MatchRuntime, playerIds: string[]): Pr
   const keySig = keys.map((k) => k.join(':')).join('|');
   if (runtime.inputWatchKeySig === keySig) return;
 
-  runtime.inputWatchAbort?.abort();
-  const abort = new AbortController();
-  runtime.inputWatchAbort = abort;
+  runtime.inputWatchIter?.return?.();
+  const iterator = kv.watch(keys)[Symbol.asyncIterator]();
+  runtime.inputWatchIter = iterator;
   runtime.inputWatchKeySig = keySig;
 
   (async () => {
-    for await (const entries of kv.watch(keys, { signal: abort.signal })) {
-      for (const entry of entries) {
-        if (!entry?.value) continue;
-        const pid = entry.key[3] as string;
-        runtime.lastInputs.set(pid, entry.value as PlayerInputState);
+    try {
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) return;
+        const entries = next.value;
+        for (const entry of entries) {
+          if (!entry?.value) continue;
+          const pid = entry.key[3] as string;
+          runtime.lastInputs.set(pid, entry.value as PlayerInputState);
+        }
       }
+    } catch {
+      // ignore
     }
   })();
 }
@@ -370,8 +411,12 @@ async function allocateSlot(playerId: string): Promise<{ matchId: string; slot: 
     if (slot !== null) return { matchId, slot };
   }
   const matchId = crypto.randomUUID();
-  await kv.set(WAITING_KEY(matchId), { createdAt: Date.now() }, { expireIn: 15 * 60 * 1000 });
-  await kv.set(META_KEY(matchId), { status: 'waiting', createdAt: Date.now() } satisfies MatchMeta);
+  const now = Date.now();
+  await kv.set(WAITING_KEY(matchId), { createdAt: now }, { expireIn: 15 * 60 * 1000 });
+  await kv.set(
+    META_KEY(matchId),
+    { status: 'waiting', createdAt: now, seed: Math.floor(Math.random() * 1_000_000_000), mapId: MAP_ID } satisfies MatchMeta
+  );
   const slot = await assignSlot(matchId, playerId);
   if (slot === null) return null;
   return { matchId, slot };

@@ -62,7 +62,7 @@ class MatchCoordinator {
 }
 
 async function runLeaderSession(kv: Deno.Kv, matchId: string, ownerId: string): Promise<void> {
-  const abort = new AbortController();
+  let stopped = false;
 
   const inputs: InputRecord[] = [];
   for (let i = 0; i < MAX_PLAYERS; i += 1) inputs.push({ seq: 0, moveDir: 0, aimDir: 0, fire: false, ts: 0 });
@@ -72,7 +72,6 @@ async function runLeaderSession(kv: Deno.Kv, matchId: string, ownerId: string): 
   const metaEntry = await kv.get<MatchMeta>(metaKey(matchId));
   let meta = metaEntry.value;
   if (!meta) {
-    abort.abort();
     return;
   }
   state.status = meta.status;
@@ -99,9 +98,19 @@ async function runLeaderSession(kv: Deno.Kv, matchId: string, ownerId: string): 
   let lastLeaseRenewAt = 0;
   let lastPublishedStatus: MatchMeta['status'] = meta.status;
 
+  const iterator = kv.watch(watchKeys)[Symbol.asyncIterator]();
+  const stop = (): void => {
+    if (stopped) return;
+    stopped = true;
+    iterator.return?.();
+  };
+
   const watchTask = (async () => {
     try {
-      for await (const entries of kv.watch(watchKeys, { signal: abort.signal })) {
+      while (true) {
+        const next = await iterator.next();
+        if (next.done) return;
+        const entries = next.value;
         const metaEntry = entries[0]?.value as MatchMeta | null;
         if (metaEntry) {
           meta = metaEntry;
@@ -127,13 +136,13 @@ async function runLeaderSession(kv: Deno.Kv, matchId: string, ownerId: string): 
   const tickMs = Math.round(1000 / SERVER_TICK_HZ);
   let snapshotAcc = 0;
 
-  while (!abort.signal.aborted) {
+  while (!stopped) {
     const now = Date.now();
     if (now - lastLeaseRenewAt >= LEADER_RENEW_EVERY_MS) {
       const renewed = await tryRenewLeader(kv, matchId, ownerId);
       lastLeaseRenewAt = now;
       if (!renewed) {
-        abort.abort();
+        stop();
         break;
       }
     }
@@ -162,11 +171,7 @@ async function runLeaderSession(kv: Deno.Kv, matchId: string, ownerId: string): 
     await sleep(tickMs);
   }
 
-  try {
-    abort.abort();
-  } catch {
-    // ignore
-  }
+  stop();
   await watchTask;
 }
 

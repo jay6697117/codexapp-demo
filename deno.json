@@ -1,4 +1,5 @@
 {
+  "unstable": ["kv"],
   "tasks": {
     "dev": "deno run -A --watch server/main.ts",
     "test": "deno test -A"
@@ -7,6 +8,13 @@
     "lineWidth": 100,
     "semiColons": true,
     "singleQuote": true
+  },
+  "deploy": {
+    "install": "pnpm install --frozen-lockfile",
+    "build": "pnpm -C client build",
+    "runtime": {
+      "type": "dynamic",
+      "entrypoint": "server/main.ts"
+    }
   }
 }
-

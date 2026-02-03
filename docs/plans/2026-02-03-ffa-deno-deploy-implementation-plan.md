@@ -1,28 +1,28 @@
-# FFA Pixel Shooter (Deno Deploy + KV) Implementation Plan
+# 自由混战（`FFA`）像素射击（Deno Deploy + KV）落地实施计划
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **给 Codex：**必须使用 `superpowers:executing-plans` 按任务逐条执行本计划。
 
-**Goal:** Build a deployable 8-player FFA top-down pixel shooter with a KV-recoverable Deno Deploy server and a PixiJS web client.
+**目标：**落地一个可部署的 8 人自由混战（`FFA`）俯视像素射击示例：Deno Deploy 服务端（Deno KV 可恢复）+ PixiJS 浏览器客户端。
 
-**Architecture:** Shared deterministic simulation in `shared/`, Deno Deploy server in `server/` (HTTP + WebSocket + KV leader/snapshot), and PixiJS client in `client/` with offline fallback and network mode.
+**架构：**`shared/` 提供确定性仿真与快照编解码；`server/` 提供 HTTP + WebSocket + KV 领导者租约/快照；`client/` 负责渲染与输入，上线模式失败自动回退离线模式。
 
-**Tech Stack:** Deno Deploy, Deno KV, TypeScript, PixiJS, Vite, Playwright (skill client).
+**技术栈：**Deno Deploy、Deno KV、TypeScript、PixiJS、Vite、Playwright（技能客户端）。
 
 ---
 
-### Task 1: Repository Structure & Tooling
+### 任务 1：仓库结构与工具链
 
-**Files:**
-- Create: `client/package.json`
-- Create: `client/vite.config.ts`
-- Create: `client/tsconfig.json`
-- Create: `client/index.html`
-- Create: `server/main.ts`
-- Create: `shared/src/index.ts`
-- Create: `shared/src/constants.ts`
-- Create: `shared/src/types.ts`
+**涉及文件：**
+- 新建：`client/package.json`
+- 新建：`client/vite.config.ts`
+- 新建：`client/tsconfig.json`
+- 新建：`client/index.html`
+- 新建：`server/main.ts`
+- 新建：`shared/src/index.ts`
+- 新建：`shared/src/constants.ts`
+- 新建：`shared/src/types.ts`
 
-**Step 1: Write the failing test**
+**步骤 1：先写一个会失败的最小测试**
 
 ```ts
 import { initGameState } from "../../shared/src/index";
@@ -30,13 +30,13 @@ const state = initGameState(1);
 if (!state) throw new Error("state missing");
 ```
 
-**Step 2: Run test to verify it fails**
+**步骤 2：运行测试，确认它会失败**
 
-Run: `node -e "require('./shared/src/index')"`
+运行：`node -e "require('./shared/src/index')"`
 
-Expected: FAIL with "module not found"
+预期：失败（`module not found`）
 
-**Step 3: Write minimal implementation**
+**步骤 3：写最小实现让测试通过**
 
 ```ts
 export function initGameState(seed: number) {
@@ -44,13 +44,13 @@ export function initGameState(seed: number) {
 }
 ```
 
-**Step 4: Run test to verify it passes**
+**步骤 4：再次运行测试，确认它通过**
 
-Run: `node -e "require('./shared/src/index')"`
+运行：`node -e "require('./shared/src/index')"`
 
-Expected: PASS (no exception)
+预期：通过（无异常）
 
-**Step 5: Commit**
+**步骤 5：提交**
 
 ```bash
 git add client server shared
@@ -59,17 +59,17 @@ git commit -m "chore: initialize structure"
 
 ---
 
-### Task 2: Shared Simulation Core
+### 任务 2：`shared/` 仿真核心
 
-**Files:**
-- Create: `shared/src/rng.ts`
-- Create: `shared/src/map.ts`
-- Create: `shared/src/physics.ts`
-- Create: `shared/src/sim.ts`
-- Create: `shared/src/snapshot.ts`
-- Modify: `shared/src/index.ts`
+**涉及文件：**
+- 新建：`shared/src/rng.ts`
+- 新建：`shared/src/map.ts`
+- 新建：`shared/src/physics.ts`
+- 新建：`shared/src/sim.ts`
+- 新建：`shared/src/snapshot.ts`
+- 修改：`shared/src/index.ts`
 
-**Step 1: Write the failing test**
+**步骤 1：先写一个会失败的最小测试**
 
 ```ts
 import { initGameState, stepGame } from "../../shared/src/index";
@@ -78,13 +78,13 @@ const next = stepGame(state, new Map(), 1 / 30);
 if (!next) throw new Error("step missing");
 ```
 
-**Step 2: Run test to verify it fails**
+**步骤 2：运行测试，确认它会失败**
 
-Run: `node -e "require('./shared/src/index')"`
+运行：`node -e "require('./shared/src/index')"`
 
-Expected: FAIL with "stepGame not defined"
+预期：失败（`stepGame not defined`）
 
-**Step 3: Write minimal implementation**
+**步骤 3：写最小实现让测试通过**
 
 ```ts
 export function stepGame(state, inputs, dt) {
@@ -92,13 +92,13 @@ export function stepGame(state, inputs, dt) {
 }
 ```
 
-**Step 4: Run test to verify it passes**
+**步骤 4：再次运行测试，确认它通过**
 
-Run: `node -e "require('./shared/src/index')"`
+运行：`node -e "require('./shared/src/index')"`
 
-Expected: PASS
+预期：通过
 
-**Step 5: Commit**
+**步骤 5：提交**
 
 ```bash
 git add shared
@@ -107,34 +107,34 @@ git commit -m "feat: add shared simulation core"
 
 ---
 
-### Task 3: Client Rendering & Input
+### 任务 3：客户端渲染与输入
 
-**Files:**
-- Create: `client/src/main.ts`
+**涉及文件：**
+- 新建：`client/src/main.ts`
 
-**Step 1: Write the failing test**
+**步骤 1：先写一个会失败的最小测试**
 
 ```js
 if (!window.render_game_to_text) throw new Error("missing render_game_to_text");
 ```
 
-**Step 2: Run test to verify it fails**
+**步骤 2：运行测试，确认它会失败**
 
-Run: `npm --prefix client run dev` then check in browser console
+运行：`npm --prefix client run dev`，然后在浏览器控制台检查
 
-Expected: FAIL
+预期：失败
 
-**Step 3: Write minimal implementation**
+**步骤 3：写最小实现让测试通过**
 
 ```ts
 window.render_game_to_text = () => JSON.stringify({ mode: "menu" });
 ```
 
-**Step 4: Run test to verify it passes**
+**步骤 4：再次验证，确认它通过**
 
-Expected: PASS
+预期：通过
 
-**Step 5: Commit**
+**步骤 5：提交**
 
 ```bash
 git add client
@@ -143,32 +143,32 @@ git commit -m "feat: render loop and input"
 
 ---
 
-### Task 4: Deno Deploy Server (HTTP + WS + KV)
+### 任务 4：Deno Deploy 服务端（HTTP + WS + KV）
 
-**Files:**
-- Modify/Create: `server/main.ts`
+**涉及文件：**
+- 新建/修改：`server/main.ts`
 
-**Step 1: Write the failing test**
+**步骤 1：先写一个会失败的最小验证**
 
 ```sh
 curl -s -X POST http://localhost:8000/api/match/join | jq .
 ```
 
-**Step 2: Run test to verify it fails**
+**步骤 2：运行验证，确认它会失败**
 
-Expected: 404
+预期：404
 
-**Step 3: Write minimal implementation**
+**步骤 3：写最小实现让验证通过**
 
 ```ts
 if (pathname === "/api/match/join") return new Response("ok");
 ```
 
-**Step 4: Run test to verify it passes**
+**步骤 4：再次运行验证，确认它通过**
 
-Expected: 200 OK
+预期：200
 
-**Step 5: Commit**
+**步骤 5：提交**
 
 ```bash
 git add server
@@ -177,35 +177,35 @@ git commit -m "feat: add basic Deno server"
 
 ---
 
-### Task 5: KV Leader + Snapshot Broadcast
+### 任务 5：KV 领导者 + 快照广播
 
-**Files:**
-- Modify: `server/main.ts`
-- Modify: `shared/src/snapshot.ts`
+**涉及文件：**
+- 修改：`server/main.ts`
+- 修改：`shared/src/snapshot.ts`
 
-**Step 1: Write the failing test**
+**步骤 1：先写一个会失败的最小验证**
 
 ```ts
 // Pseudo: ensure snapshot seq increments in KV
 ```
 
-**Step 2: Run test to verify it fails**
+**步骤 2：运行验证，确认它会失败**
 
-Run: `deno run -A server/main.ts`
+运行：`deno run -A server/main.ts`
 
-Expected: no snapshot writes
+预期：KV 中没有快照写入
 
-**Step 3: Write minimal implementation**
+**步骤 3：写最小实现让验证通过**
 
 ```ts
 await kv.set(["match", matchId, "snapshot"], { seq: 1, serverTime: Date.now(), bytes });
 ```
 
-**Step 4: Run test to verify it passes**
+**步骤 4：再次运行验证，确认它通过**
 
-Expected: KV shows snapshot key
+预期：KV 中存在快照 `key`
 
-**Step 5: Commit**
+**步骤 5：提交**
 
 ```bash
 git add server shared
@@ -214,23 +214,23 @@ git commit -m "feat: leader snapshot writes"
 
 ---
 
-### Task 6: Playwright Automation Loop
+### 任务 6：Playwright 自动化回归（技能客户端）
 
-**Files:**
-- Modify: `client/src/main.ts`
-- Modify: `progress.md`
+**涉及文件：**
+- 修改：`client/src/main.ts`
+- 修改：`progress.md`
 
-**Step 1: Run skill client**
+**步骤 1：运行技能客户端**
 
 ```bash
-node "$WEB_GAME_CLIENT" --url http://localhost:5173 --actions-file "$WEB_GAME_ACTIONS" --click-selector "#start-btn" --iterations 3 --pause-ms 250
+node "$WEB_GAME_CLIENT" --url http://localhost:5173 --screenshot-dir output/web-game-run --actions-file "$WEB_GAME_ACTIONS" --click-selector "#start-btn" --iterations 3 --pause-ms 250
 ```
 
-**Step 2: Inspect screenshots and text state**
+**步骤 2：检查截图与文本状态**
 
-Expected: player moves, shoots, score updates.
+预期：玩家能移动/射击，分数能更新。
 
-**Step 3: Commit**
+**步骤 3：提交**
 
 ```bash
 git add client progress.md
@@ -238,9 +238,3 @@ git commit -m "test: validate interactions via playwright"
 ```
 
 ---
-
-## Execution Options
-Plan complete and saved to `docs/plans/2026-02-03-ffa-deno-deploy-implementation-plan.md`. Two execution options:
-
-1. Subagent-Driven (this session)
-2. Parallel Session (separate)

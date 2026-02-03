@@ -32,7 +32,7 @@ class MatchRoom {
   private readonly matchId: string;
   private readonly conns = new Map<string, RoomConnection>();
   private readonly relayStarted: Promise<void>;
-  private readonly relayAbort = new AbortController();
+  private relayIter?: AsyncIterator<readonly Deno.KvEntryMaybe<unknown>[]>;
   private lastSnapshotBytes: Uint8Array | null = null;
 
   constructor(kv: Deno.Kv, matchId: string) {
@@ -81,10 +81,15 @@ class MatchRoom {
     }
 
     const keys = [key];
+    this.relayIter?.return?.();
+    const iterator = this.kv.watch(keys)[Symbol.asyncIterator]();
+    this.relayIter = iterator;
     (async () => {
       try {
-        for await (const entries of this.kv.watch(keys, { signal: this.relayAbort.signal })) {
-          const snap = entries[0]?.value as SnapshotRecord | null;
+        while (true) {
+          const next = await iterator.next();
+          if (next.done) return;
+          const snap = next.value?.[0]?.value as SnapshotRecord | null;
           if (!snap?.bytes) continue;
           this.broadcastSnapshot(snap.bytes);
         }
@@ -113,4 +118,3 @@ class MatchRoom {
     };
   }
 }
-

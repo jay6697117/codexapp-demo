@@ -13,6 +13,7 @@ import {
   stepMatch,
   OBSTACLES
 } from '@shared/index.ts';
+import { initSnapshotMetrics, recordSnapshot } from './net/metrics.ts';
 
 type SnapshotDecoded = ReturnType<typeof decodeSnapshot>;
 
@@ -31,9 +32,15 @@ if (!overlay || !startBtn || !canvasWrap) {
   throw new Error('Missing DOM elements');
 }
 
+const overlayEl: HTMLDivElement = overlay;
+const startBtnEl: HTMLButtonElement = startBtn;
+const canvasWrapEl: HTMLDivElement = canvasWrap;
+
 const app = new PIXI.Application();
 const graphics = new PIXI.Graphics();
 const hudText = new PIXI.Text({ text: '', style: { fill: 0xffffff, fontSize: 14 } });
+const forceOffline = new URLSearchParams(window.location.search).has('offline');
+let appReady = false;
 
 const state = {
   mode: 'menu' as Mode,
@@ -55,7 +62,11 @@ const state = {
   localEnabled: false,
   localSnapshot: null as SnapshotDecoded | null,
   netSnapshots: [] as NetSnapshot[],
-  renderSnapshot: null as SnapshotDecoded | null
+  renderSnapshot: null as SnapshotDecoded | null,
+  snapshotMetrics: initSnapshotMetrics(),
+  leaderOwner: '',
+  leaderUpdatedAt: 0,
+  leaderInterval: 0
 };
 
 async function bootstrap(): Promise<void> {
@@ -64,10 +75,13 @@ async function bootstrap(): Promise<void> {
     height: WORLD_HEIGHT,
     backgroundColor: 0x0f141c,
     antialias: false,
-    resolution: window.devicePixelRatio || 1
+    resolution: 1,
+    autoStart: false,
+    preserveDrawingBuffer: true
   });
+  appReady = true;
 
-  canvasWrap.appendChild(app.canvas);
+  canvasWrapEl.appendChild(app.canvas);
   app.stage.addChild(graphics);
   app.stage.addChild(hudText);
   hudText.position.set(12, 12);
@@ -81,14 +95,18 @@ async function bootstrap(): Promise<void> {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
 
-  startBtn.addEventListener('click', () => startGame());
+  startBtnEl.addEventListener('click', () => startGame());
 
   setupLocalMatch();
   requestAnimationFrame(loop);
 }
 
 function startGame(): void {
-  overlay.classList.add('hidden');
+  overlayEl.classList.add('hidden');
+  if (forceOffline) {
+    startOffline();
+    return;
+  }
   state.mode = 'connecting';
   connectOnline().catch(() => {
     startOffline();
@@ -96,7 +114,8 @@ function startGame(): void {
 }
 
 async function connectOnline(): Promise<void> {
-  const res = await fetch('/api/match/join', {
+  const baseUrl = getServerBase();
+  const res = await fetch(`${baseUrl}/api/match/join`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ nickname: `Player_${Math.floor(Math.random() * 1000)}` })
@@ -107,7 +126,7 @@ async function connectOnline(): Promise<void> {
   state.playerId = data.playerId;
   state.token = data.playerToken;
 
-  const wsUrl = new URL('/ws', window.location.href);
+  const wsUrl = new URL('/ws', baseUrl || window.location.href);
   wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
   wsUrl.searchParams.set('matchId', state.matchId);
   wsUrl.searchParams.set('playerId', state.playerId);
@@ -149,6 +168,12 @@ async function connectOnline(): Promise<void> {
   };
 }
 
+function getServerBase(): string {
+  const envBase = import.meta.env.VITE_SERVER_URL;
+  if (envBase && envBase.length > 0) return envBase.replace(/\/$/, '');
+  return '';
+}
+
 function handleServerMessage(raw: string): void {
   let msg: unknown;
   try {
@@ -165,6 +190,8 @@ function handleServerMessage(raw: string): void {
     state.mode = 'online';
     state.localEnabled = false;
     state.netSnapshots = [];
+    state.snapshotMetrics = initSnapshotMetrics();
+    startLeaderPolling();
   }
 }
 
@@ -174,6 +201,7 @@ function handleSnapshotBytes(bytes: Uint8Array): void {
     const entry: NetSnapshot = { receivedAt: performance.now(), data: decoded };
     state.netSnapshots.push(entry);
     if (state.netSnapshots.length > 2) state.netSnapshots.shift();
+    state.snapshotMetrics = recordSnapshot(state.snapshotMetrics, decoded.snapshotSeq, entry.receivedAt);
   } catch {
     // ignore
   }
@@ -184,6 +212,7 @@ function startOffline(): void {
   state.connected = false;
   state.localEnabled = true;
   state.netSnapshots = [];
+  stopLeaderPolling();
 }
 
 function setupLocalMatch(): void {
@@ -203,6 +232,7 @@ function handleKeyUp(ev: KeyboardEvent): void {
 }
 
 function handleMouseMove(ev: MouseEvent): void {
+  if (!appReady) return;
   const rect = app.canvas.getBoundingClientRect();
   state.mouseX = ((ev.clientX - rect.left) / rect.width) * WORLD_WIDTH;
   state.mouseY = ((ev.clientY - rect.top) / rect.height) * WORLD_HEIGHT;
@@ -358,14 +388,19 @@ function update(dtMs: number): void {
 }
 
 function render(): void {
+  if (!appReady) return;
   graphics.clear();
-  graphics.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: 0x0f141c });
+  graphics.beginFill(0x0f141c);
+  graphics.drawRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  graphics.endFill();
+  graphics.lineStyle(2, 0x263040);
+  graphics.drawRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-  graphics.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).stroke({ color: 0x263040, width: 2 });
-
+  graphics.beginFill(0x2b3648);
   for (const obs of OBSTACLES) {
-    graphics.rect(obs.x, obs.y, obs.w, obs.h).fill({ color: 0x2b3648 });
+    graphics.drawRect(obs.x, obs.y, obs.w, obs.h);
   }
+  graphics.endFill();
 
   const snapshot = state.renderSnapshot;
   if (snapshot) {
@@ -373,24 +408,40 @@ function render(): void {
       if (!p.present) return;
       const color = idx === state.slot ? 0x38ef7d : 0xff6b6b;
       const alpha = p.alive ? 1 : 0.35;
-      graphics.circle(p.x, p.y, 10).fill({ color, alpha });
+      graphics.beginFill(color, alpha);
+      graphics.drawCircle(p.x, p.y, 10);
+      graphics.endFill();
       if (p.alive) {
         const aimAngle = (Math.PI * 2 * p.aimDir) / 16;
         const lx = p.x + Math.cos(aimAngle) * 18;
         const ly = p.y + Math.sin(aimAngle) * 18;
-        graphics.moveTo(p.x, p.y).lineTo(lx, ly).stroke({ color, width: 2, alpha: 0.8 });
+        graphics.lineStyle(2, color, 0.8);
+        graphics.moveTo(p.x, p.y);
+        graphics.lineTo(lx, ly);
+        graphics.lineStyle(0);
       }
     });
   }
 
   const local = snapshot?.players[state.slot];
+  const now = performance.now();
+  const lagMs = state.snapshotMetrics.lastReceivedAt
+    ? Math.max(0, Math.round(now - state.snapshotMetrics.lastReceivedAt))
+    : 0;
+  const leaderAge = state.leaderUpdatedAt ? Math.round((Date.now() - state.leaderUpdatedAt) / 1000) : 0;
   hudText.text = [
     `mode: ${state.mode}`,
     `match: ${state.matchId || 'local'}`,
     `player: ${state.playerId || 'local'}`,
     `hp: ${local?.hp ?? 0}`,
-    `score: ${local?.score ?? 0}`
+    `score: ${local?.score ?? 0}`,
+    `snap: ${snapshot?.snapshotSeq ?? 0}`,
+    `hz: ${state.snapshotMetrics.snapshotHz.toFixed(1)}`,
+    `lag: ${lagMs}ms`,
+    `leader: ${state.leaderOwner || 'n/a'} (${leaderAge}s)`
   ].join('\n');
+
+  app.render();
 }
 
 function loop(now: number): void {
@@ -405,6 +456,7 @@ function resizeCanvas(): void {
   const maxWidth = window.innerWidth - 24;
   const maxHeight = window.innerHeight - 24;
   const scale = Math.min(maxWidth / WORLD_WIDTH, maxHeight / WORLD_HEIGHT, 1);
+  if (!appReady) return;
   app.canvas.style.width = `${WORLD_WIDTH * scale}px`;
   app.canvas.style.height = `${WORLD_HEIGHT * scale}px`;
 }
@@ -415,7 +467,34 @@ function toggleFullscreen(): void {
     document.exitFullscreen().catch(() => {});
     return;
   }
+  if (!appReady) return;
   app.canvas.requestFullscreen().catch(() => {});
+}
+
+function startLeaderPolling(): void {
+  if (state.leaderInterval) return;
+  if (!state.matchId) return;
+  state.leaderInterval = window.setInterval(async () => {
+    try {
+      const res = await fetch(`/api/match/${state.matchId}/state`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { leader?: { owner?: string } | null };
+      const owner = data.leader?.owner ?? '';
+      if (owner !== state.leaderOwner) {
+        state.leaderOwner = owner;
+        state.leaderUpdatedAt = Date.now();
+      }
+    } catch {
+      // ignore
+    }
+  }, 5000);
+}
+
+function stopLeaderPolling(): void {
+  if (state.leaderInterval) window.clearInterval(state.leaderInterval);
+  state.leaderInterval = 0;
+  state.leaderOwner = '';
+  state.leaderUpdatedAt = 0;
 }
 
 function renderGameToText(): string {
