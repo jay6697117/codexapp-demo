@@ -48,6 +48,8 @@
 
 - `deno deploy` 需交互授权或 token；部署需显式 `--org`
 - `deno deploy` 未选择组织会报错；错误组织或无权限会报 “org not found/no access”
+- `deno deploy` 等待部署完成可能耗时较长，建议加长超时或使用 `--no-wait`
+- `deno deploy` 若 revision failed，需要在 Dashboard 查看构建日志定位具体错误
 
 ## 关键实现入口
 

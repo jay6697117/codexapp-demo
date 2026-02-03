@@ -41,24 +41,9 @@
 - [ ] Playwright 技能客户端（可选）：如需验证无头截图，建议使用 `--screenshot-dir output/web-game-run`
 - **状态：**基本完成（保留可选项）
 
-<<<<<<< HEAD
 ### 阶段 5：交付
 - [x] 文档与使用说明（README）
 - **状态：**完成
-=======
-## Errors Encountered
-| Error | Attempt | Resolution |
-|-------|---------|------------|
-| `pnpm -C client exec tsc -p tsconfig.json` failed (TS2307/TS18047/TS7006) | 1 | Fixed `client/tsconfig.json` alias + `allowImportingTsExtensions`; added `requireElement` for DOM refs |
-| `deno run -A server/main.ts` failed (`Deno.openKv` unstable) | 1 | Added `"unstable": ["kv"]` to `deno.json` |
-| Node Playwright multi-client check failed (shell backticks + matchId undefined) | 1 | Fixed quoting + wait loop; verified same match and playerCount >= 2 |
-| `deno deploy --help` timed out while downloading deps | 1 | Re-ran with longer timeout; help output retrieved |
-| `deno deploy create .` failed (config parse: unknown field `install`) | 1 | pending |
-| `deno deploy .` failed after auth (org not found/no access) | 1 | Removed placeholder `deploy.org/app` from `deno.json`; waiting for real org/app |
-| `deno deploy .` failed: no organization selected | 1 | pending |
-| `deno deploy switch` failed: no organization selected | 1 | pending |
-| `deno deploy --org SteveZhang --app codex-demo --prod .` failed (org not found/no access) | 1 | pending |
->>>>>>> codex/local-online
 
 ## 关键问题（已覆盖）
 
@@ -71,3 +56,14 @@
 |------|------|------|
 | `python3` 启动服务端的冒烟脚本卡住（等待 `stdout` 读取） | 1 | 改为不读 `stdout`（或仅在进程退出时读取），用 `sleep` 等待启动 |
 | `rm` 被策略阻断 | 1 | 使用 `python3` 删除文件或 `git checkout -- <file>` 回滚 |
+| `pnpm -C client exec tsc -p tsconfig.json` 失败（TS2307/TS18047/TS7006） | 1 | 修正 `client/tsconfig.json` 的别名与 `allowImportingTsExtensions`，增加 `requireElement` |
+| `deno run -A server/main.ts` 失败（`Deno.openKv` unstable） | 1 | 在 `deno.json` 增加 `"unstable": ["kv"]` |
+| Playwright 多客户端联机校验失败（shell 反引号 / `matchId` 未定义） | 1 | 修正引号并增加等待循环，验证同局且 `playerCount >= 2` |
+| `deno deploy --help` 下载依赖超时 | 1 | 增加超时时间后重试 |
+| `deno deploy create .` 解析配置失败（unknown field `install`） | 1 | 移除 `deno.json` 中的 `deploy.*` 占位字段 |
+| `deno deploy .` 授权后失败（org not found/no access） | 1 | 使用正确 `org/app` 参数 |
+| `deno deploy .` 未选择组织 | 1 | 使用 `--org` 显式指定 |
+| `deno deploy switch` 未选择组织 | 1 | 使用 `--org` 显式指定 |
+| `deno deploy --org SteveZhang --app codex-demo --prod .` 失败（org not found/no access） | 1 | 更换为实际可用的 `org/app` |
+| `deno deploy --org jay6697117 --app codexapp-demo --prod .` 等待部署超时 | 1 | 增加超时或使用 `--no-wait` |
+| `deno deploy --org jay6697117 --app codexapp-demo --prod .` revision failed | 1 | 需查看构建日志定位失败原因（Dashboard） |

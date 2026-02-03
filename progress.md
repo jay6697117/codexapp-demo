@@ -1,6 +1,6 @@
 # 进度记录
 
-原始需求：想将计划落地在目录下，然后使用 `develop-web-game` 这个技能参考开发计划进行全面开发
+Original prompt: 想将计划落地在目录下，然后使用 `develop-web-game` 这个技能参考开发计划进行全面开发
 
 ## 会话：2026-02-03
 
@@ -34,6 +34,8 @@
 | `pnpm -C client exec tsc -p tsconfig.json` | 通过 |
 | `pnpm -C client build` | 通过 |
 | `deno deploy --help` | 通过 |
+| `~/.deno/bin/deno deploy --org jay6697117 --app codexapp-demo --prod .` | 超时（等待部署完成） |
+| `~/.deno/bin/deno deploy --org jay6697117 --app codexapp-demo --prod .` | 失败（revision failed） |
 
 ## 问题记录
 | 时间 | 问题 | 处理 |
@@ -45,3 +47,5 @@
 | 2026-02-03 | 本地 Deno 2.x `Deno.openKv` 需要显式启用 | 在 `deno.json` 增加 `"unstable": ["kv"]` |
 | 2026-02-03 | `deno deploy` 解析 `deploy` 配置失败 | 移除 `deno.json` 中的 `deploy` 额外字段 |
 | 2026-02-03 | `deno deploy` 未选择组织/组织无权限 | 需要提供正确 `org/app` |
+| 2026-02-03 | `deno deploy` 等待部署超时 | 增加超时或使用 `--no-wait` |
+| 2026-02-03 | `deno deploy` revision failed | 需查看 Dashboard 构建日志定位原因 |

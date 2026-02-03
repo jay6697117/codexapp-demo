@@ -1,7 +1,10 @@
 {
   "tasks": {
     "dev": "deno run -A --watch server/main.ts",
-    "test": "deno test -A"
+    "test": "deno test -A",
+    "deploy": "./scripts/deploy-deno.sh",
+    "deploy:preview": "./scripts/deploy-deno.sh --preview",
+    "deploy:dry": "./scripts/deploy-deno.sh --dry-run"
   },
   "fmt": {
     "lineWidth": 100,
