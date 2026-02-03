@@ -23,13 +23,16 @@ type NetSnapshot = {
 
 type Mode = 'menu' | 'connecting' | 'online' | 'offline';
 
-const overlay = document.querySelector<HTMLDivElement>('#overlay');
-const startBtn = document.querySelector<HTMLButtonElement>('#start-btn');
-const canvasWrap = document.querySelector<HTMLDivElement>('#canvas-wrap');
-
-if (!overlay || !startBtn || !canvasWrap) {
-  throw new Error('Missing DOM elements');
+function requireElement<T extends Element>(el: T | null, name: string): T {
+  if (!el) {
+    throw new Error(`Missing DOM element: ${name}`);
+  }
+  return el;
 }
+
+const overlay = requireElement(document.querySelector<HTMLDivElement>('#overlay'), 'overlay');
+const startBtn = requireElement(document.querySelector<HTMLButtonElement>('#start-btn'), 'start-btn');
+const canvasWrap = requireElement(document.querySelector<HTMLDivElement>('#canvas-wrap'), 'canvas-wrap');
 
 const app = new PIXI.Application();
 const graphics = new PIXI.Graphics();
@@ -64,7 +67,8 @@ async function bootstrap(): Promise<void> {
     height: WORLD_HEIGHT,
     backgroundColor: 0x0f141c,
     antialias: false,
-    resolution: window.devicePixelRatio || 1
+    resolution: window.devicePixelRatio || 1,
+    preserveDrawingBuffer: true
   });
 
   canvasWrap.appendChild(app.canvas);

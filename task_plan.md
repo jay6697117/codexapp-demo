@@ -53,7 +53,15 @@ Phase 3
 ## Errors Encountered
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-|       | 1       |            |
+| `pnpm -C client exec tsc -p tsconfig.json` failed (TS2307/TS18047/TS7006) | 1 | Fixed `client/tsconfig.json` alias + `allowImportingTsExtensions`; added `requireElement` for DOM refs |
+| `deno run -A server/main.ts` failed (`Deno.openKv` unstable) | 1 | Added `"unstable": ["kv"]` to `deno.json` |
+| Node Playwright multi-client check failed (shell backticks + matchId undefined) | 1 | Fixed quoting + wait loop; verified same match and playerCount >= 2 |
+| `deno deploy --help` timed out while downloading deps | 1 | Re-ran with longer timeout; help output retrieved |
+| `deno deploy create .` failed (config parse: unknown field `install`) | 1 | pending |
+| `deno deploy .` failed after auth (org not found/no access) | 1 | Removed placeholder `deploy.org/app` from `deno.json`; waiting for real org/app |
+| `deno deploy .` failed: no organization selected | 1 | pending |
+| `deno deploy switch` failed: no organization selected | 1 | pending |
+| `deno deploy --org SteveZhang --app codex-demo --prod .` failed (org not found/no access) | 1 | pending |
 
 ## Notes
 - Update phase status as you progress: pending → in_progress → complete

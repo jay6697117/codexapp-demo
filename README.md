@@ -31,6 +31,7 @@ The build outputs to `server/public/`.
 ## Deno Deploy Notes
 - Entrypoint: `server/main.ts`
 - The server serves static files from `server/public/`
+- Use `deno deploy create .` or `deno deploy --prod .` with interactive login; `deno.json` `deploy` supports `org/app` only.
 - KV keys:
   - `["match", matchId, "meta"]`
   - `["match", matchId, "leader"]`

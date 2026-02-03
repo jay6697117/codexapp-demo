@@ -7,6 +7,13 @@ export default defineConfig({
     host: true,
     fs: {
       allow: ['..']
+    },
+    proxy: {
+      '/api': 'http://localhost:8000',
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true
+      }
     }
   },
   resolve: {
@@ -19,4 +26,3 @@ export default defineConfig({
     emptyOutDir: true
   }
 });
-
